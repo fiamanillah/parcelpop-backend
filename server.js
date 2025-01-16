@@ -1,6 +1,7 @@
 const express = require('express');
 const dotEnv = require('dotenv');
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 
 dotEnv.config();
 const app = express();
@@ -16,6 +17,7 @@ const dummy = {
 app.get('/', (req, res) => {
     res.json(dummy);
 });
+app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
