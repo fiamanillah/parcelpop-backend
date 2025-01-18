@@ -19,8 +19,6 @@ const register = async (req, res) => {
             const firebaseUser = await verifyFirebaseToken(idToken);
             userEmail = firebaseUser.email; // Use separate variable for Firebase email
 
-            console.log(firebaseUser);
-
             // Check if user already exists
             user = await User.findOne({ email: userEmail });
             if (user) return res.status(400).json({ message: 'User already exists' });
@@ -37,7 +35,6 @@ const register = async (req, res) => {
             // Email/password registration
             user = await User.findOne({ email });
             if (user) return res.status(400).json({ message: 'User already exists' });
-            console.log(req.file);
 
             if (!req.file) {
                 return res.status(400).json({ error: 'No profile picture provided' });
