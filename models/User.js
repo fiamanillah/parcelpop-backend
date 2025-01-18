@@ -24,6 +24,8 @@ const userSchema = new mongoose.Schema(
             enum: ['User', 'Admin', 'DeliveryMan'],
             default: 'User',
         },
+        parcelsBooked: { type: Number, default: 0 },
+        totalSpent: { type: Number, default: 0 },
     },
     { timestamps: true }
 );
