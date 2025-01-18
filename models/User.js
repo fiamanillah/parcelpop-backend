@@ -1,29 +1,32 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
+const userSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String,
+            required: true,
+        },
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+        },
+        password: {
+            type: String,
+        },
+        profileImage: {
+            type: String,
+            default: '',
+        },
+        role: {
+            type: String,
+            enum: ['User', 'Admin', 'DeliveryMan'],
+            default: 'User',
+        },
     },
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-    },
-    password: {
-        type: String,
-    },
-    profileImage: {
-        type: String,
-        default: '',
-    },
-    role: {
-        type: String,
-        enum: ['User', 'Admin', 'DeliveryMan'],
-        default: 'User',
-    },
-});
+    { timestamps: true }
+);
 
 // Hash password before saving if it's modified
 userSchema.pre('save', async function (next) {
