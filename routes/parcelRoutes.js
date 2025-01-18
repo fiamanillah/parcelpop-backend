@@ -6,7 +6,9 @@ const {
     getParcelById,
     updateParcel,
     getMyParcels,
+    cancelParcelBooking,
 } = require('../controllers/parcelController'); // Adjust the path
+const authenticateJWT = require('../middleware/authMiddleware');
 
 // Create a parcel
 router.post('/create', createParcel);
@@ -22,5 +24,8 @@ router.put('/updateParcel/:id', updateParcel);
 
 // GET route to fetch parcels by userId
 router.get('/myParcel/:userId', getMyParcels);
+
+// DELETE route to cancel a parcel booking
+router.delete('/cancelMyBooking/:parcelId', authenticateJWT, cancelParcelBooking);
 
 module.exports = router;

@@ -170,10 +170,62 @@ const getMyParcels = async (req, res) => {
     }
 };
 
+const cancelParcelBooking = async (req, res) => {
+    try {
+        const { parcelId } = req.params; // Get the parcelId from the request parameters
+        const user = req.user; // Assuming userId is available via authentication middleware
+
+        // Find the parcel by its ID and ensure it's the user's parcel
+        const parcel = await Parcel.findById(parcelId);
+        console.log(parcel.userId, user._id);
+
+        if (!parcel) {
+            return res.status(404).json({
+                success: false,
+                message: 'Parcel not found.',
+            });
+        }
+
+        // Ensure the parcel belongs to the logged-in user
+        if (parcel.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'You can only cancel your own parcels.',
+            });
+        }
+
+        // Check if the parcel is still in "Pending" status
+        if (parcel.status !== 'Pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'You can only cancel parcels that are in "Pending" status.',
+            });
+        }
+
+        // Update the parcel status to "Cancelled"
+        parcel.status = 'Cancelled';
+        await parcel.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Parcel booking cancelled successfully.',
+            data: parcel,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Error cancelling parcel booking.',
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     createParcel,
     getAllParcels,
     getParcelById,
     updateParcel,
     getMyParcels,
+    cancelParcelBooking,
 };
