@@ -7,6 +7,12 @@ const {
     updateParcel,
     getMyParcels,
     cancelParcelBooking,
+    filterParcels,
+    assignDeliveryMan,
+    getParcelsForDeliveryMan,
+    addReview,
+    getMyReviews,
+    updateParcelStatus,
 } = require('../controllers/parcelController'); // Adjust the path
 const authenticateJWT = require('../middleware/authMiddleware');
 
@@ -25,7 +31,24 @@ router.put('/updateParcel/:id', updateParcel);
 // GET route to fetch parcels by userId
 router.get('/myParcel/:userId', getMyParcels);
 
+// Route for filtering parcels
+router.get('/filterByDate', filterParcels);
+
+// PATCH route for assigning a deliveryman to a parcel
+router.patch('/assign/:id', assignDeliveryMan);
+
 // DELETE route to cancel a parcel booking
-router.delete('/cancelMyBooking/:parcelId', authenticateJWT, cancelParcelBooking);
+router.delete('/cancelBooking/:parcelId', authenticateJWT, cancelParcelBooking);
+
+// Route to get parcels for the delivery man
+router.get('/parcelForDeliveryMan', authenticateJWT, getParcelsForDeliveryMan);
+
+// POST /api/reviews
+router.post('/reviews', authenticateJWT, addReview);
+
+// GET /api/reviews/my-reviews
+router.get('/reviews/my-reviews', authenticateJWT, getMyReviews);
+
+router.patch('/:id/status', updateParcelStatus);
 
 module.exports = router;

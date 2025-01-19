@@ -122,6 +122,38 @@ const login = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 };
+const updateProfilePicture = async (req, res) => {
+    try {
+        const userId = req.user._id; // Assuming user ID is stored in req.user from authentication middleware
+
+        // Check if a file is uploaded
+        if (!req.file) {
+            return res.status(400).json({ message: 'No profile picture provided' });
+        }
+
+        // Construct the file URL
+        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+        // Update the user's profile picture in the database
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { profileImage: fileUrl },
+            { new: true } // Return the updated user document
+        );
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile picture updated successfully',
+            profileImage: user.profileImage,
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 const refreshAccessToken = (req, res) => {
     const { refreshToken } = req.body;
@@ -189,4 +221,52 @@ const getPrivateUserData = async (req, res) => {
     }
 };
 
-module.exports = { register, login, refreshAccessToken, updateUserRole, getPrivateUserData };
+const getDeliveryMen = async (req, res) => {
+    try {
+        const { page, limit } = req.query; // Extract page and limit from query parameters
+
+        // Set default values for page and limit if not provided
+        const pageNum = parseInt(page) || 1; // Default to page 1
+        const limitNum = parseInt(limit) || 0; // Default to no limit (fetch all)
+
+        // Calculate the number of documents to skip
+        const skip = (pageNum - 1) * limitNum;
+
+        // Query delivery personnel with pagination
+        const deliveryMenQuery = User.find({ role: 'DeliveryMan' }).select('-password');
+        if (limitNum > 0) {
+            deliveryMenQuery.skip(skip).limit(limitNum);
+        }
+        const deliveryMen = await deliveryMenQuery;
+
+        // Check if there are any delivery personnel
+        if (deliveryMen.length === 0) {
+            return res.status(404).json({ message: 'No delivery personnel found' });
+        }
+
+        // Count the total number of delivery personnel
+        const totalDeliveryMen = await User.countDocuments({ role: 'DeliveryMan' });
+
+        // Return the list of delivery personnel with pagination info
+        res.status(200).json({
+            success: true,
+            page: pageNum,
+            limit: limitNum || 'All',
+            totalPages: limitNum > 0 ? Math.ceil(totalDeliveryMen / limitNum) : 1,
+            totalDeliveryMen,
+            deliveryMen,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+module.exports = {
+    register,
+    login,
+    refreshAccessToken,
+    updateUserRole,
+    getPrivateUserData,
+    updateProfilePicture,
+    getDeliveryMen,
+};

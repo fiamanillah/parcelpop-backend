@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const upload = require('./utils/multerUtils');
 const cors = require('cors');
 const parcelRouetes = require('./routes/parcelRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 dotEnv.config();
 
@@ -49,6 +50,7 @@ app.use('/api/auth', authRoutes);
 
 app.use('/api/parcel', parcelRouetes);
 
+app.use('/api', userRoutes);
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

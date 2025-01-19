@@ -1,4 +1,6 @@
 const Parcel = require('../models/parcelSchema'); // Adjust the path to your Parcel model
+const Review = require('../models/reviewSchema'); // Adjust the path to your Parcel model
+const User = require('../models/User');
 
 // Save a new parcel to the database
 const createParcel = async (req, res) => {
@@ -144,9 +146,7 @@ const getMyParcels = async (req, res) => {
         const { userId } = req.params; // Get the userId from the request parameters
 
         // Find parcels where userId matches and return only necessary fields
-        const parcels = await Parcel.find({ userId }).select(
-            'userName userEmail parcelType parcelWeight receiverName receiverPhone deliveryAddress price requestedDeliveryDate status bookingDate'
-        );
+        const parcels = await Parcel.find({ userId });
 
         if (parcels.length === 0) {
             return res.status(404).json({
@@ -221,6 +221,300 @@ const cancelParcelBooking = async (req, res) => {
     }
 };
 
+// Controller to filter parcels by date range
+const filterParcels = async (req, res) => {
+    const { dateFrom, dateTo } = req.query; // Getting date range from query params
+
+    console.log(dateFrom, dateTo);
+
+    try {
+        // Validate date format (simple validation, you may use a library for robust validation)
+        if (!dateFrom || !dateTo) {
+            return res.status(400).json({ message: 'Both dateFrom and dateTo are required.' });
+        }
+
+        // Convert the dates from string to Date objects
+        const startDate = new Date(dateFrom);
+        const endDate = new Date(dateTo);
+
+        if (isNaN(startDate) || isNaN(endDate)) {
+            return res.status(400).json({ message: 'Invalid date format.' });
+        }
+
+        // Query the database for parcels within the date range
+        const parcels = await Parcel.find({
+            createdAt: {
+                $gte: startDate,
+                $lte: endDate,
+            },
+        });
+
+        // If no parcels found
+        if (parcels.length === 0) {
+            return res
+                .status(404)
+                .json({ message: 'No parcels found in the specified date range.' });
+        }
+
+        // Return the filtered parcels
+        return res.status(200).json(parcels);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Server error. Please try again later.' });
+    }
+};
+
+// Assign deliveryman and update parcel status
+const assignDeliveryMan = async (req, res) => {
+    const { id } = req.params; // The parcel ID from the URL
+    const { deliveryManId, deliveryDate } = req.body; // The deliveryManId and deliveryDate from the request body
+
+    try {
+        // Validate required fields
+        if (!deliveryManId || !deliveryDate) {
+            return res
+                .status(400)
+                .json({ message: 'DeliveryManId and deliveryDate are required.' });
+        }
+
+        // Find the parcel by ID
+        const parcel = await Parcel.findById(id);
+        if (!parcel) {
+            return res.status(404).json({ message: 'Parcel not found.' });
+        }
+
+        // Check if parcel status is not already 'Delivered', 'Returned', or 'Cancelled'
+        if (['Delivered', 'Returned', 'Cancelled'].includes(parcel.status)) {
+            return res.status(400).json({
+                message:
+                    'Cannot assign deliveryman to a parcel that is already delivered, returned, or cancelled.',
+            });
+        }
+
+        // Assign the deliveryManId and update the status
+        parcel.deliveryManId = deliveryManId;
+        parcel.approximateDeliveryDate = deliveryDate; // Assuming the deliveryDate is approximateDeliveryDate
+        parcel.status = 'On The Way'; // Update the parcel status to 'On The Way'
+
+        // Save the updated parcel
+        await parcel.save();
+
+        // Respond with the updated parcel details
+        return res.status(200).json({
+            message: 'Parcel updated successfully.',
+            parcel,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Failed to assign deliveryman and update parcel.' });
+    }
+};
+
+const getParcelsForDeliveryMan = async (req, res) => {
+    try {
+        const deliveryManId = req.user._id; // Assuming deliveryManId is available from the authentication middleware
+        const { page, limit } = req.query; // Pagination parameters
+
+        // Set default values for pagination if not provided
+        const pageNumber = parseInt(page) || 1; // Default to page 1
+        const pageSize = parseInt(limit) || 0; // If no limit provided, fetch all
+
+        const skip = (pageNumber - 1) * pageSize;
+
+        // Query to find parcels assigned to the delivery man, sorted by latest first
+        const query = { deliveryManId };
+
+        const parcelsQuery = Parcel.find(query).sort({ createdAt: -1 }); // Sort by latest first
+
+        // If pagination is enabled, apply skip and limit
+        if (pageSize > 0) {
+            parcelsQuery.skip(skip).limit(pageSize);
+        }
+
+        const parcels = await parcelsQuery.exec();
+
+        // Check if parcels are found
+        if (!parcels.length) {
+            return res.status(404).json({
+                success: false,
+                message: 'No parcels found for the delivery man.',
+            });
+        }
+
+        // Return the parcels with success response
+        res.status(200).json({
+            success: true,
+            message: 'Parcels fetched successfully.',
+            data: parcels,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching parcels.',
+            error: error.message,
+        });
+    }
+};
+
+// Add a review
+const addReview = async (req, res) => {
+    try {
+        const { deliveryManId, parcelId, rating, feedback } = req.body;
+
+        // Validate input
+        if (!deliveryManId || !parcelId || !rating) {
+            return res
+                .status(400)
+                .json({ message: 'DeliveryManId, parcelId, and rating are required.' });
+        }
+
+        // Check if the parcel status is 'Delivered'
+        const parcel = await Parcel.findOne({
+            _id: parcelId,
+            deliveryManId,
+            status: 'Delivered', // Check if the status is Delivered
+        });
+
+        if (!parcel) {
+            return res.status(400).json({
+                message: 'Cannot add a review. Parcel status must be Delivered.',
+            });
+        }
+
+        // Check if user has already reviewed this parcel and delivery man
+        const existingReview = await Review.findOne({
+            userId: req.user._id, // Assuming userId is available in req.user from your auth middleware
+            deliveryManId,
+            parcelId,
+        });
+
+        if (existingReview) {
+            return res.status(400).json({
+                message: 'You have already reviewed this delivery man for this parcel.',
+            });
+        }
+
+        // Create and save the new review
+        const review = new Review({
+            userId: req.user._id, // From auth middleware
+            deliveryManId,
+            rating,
+            feedback,
+        });
+
+        await review.save();
+
+        return res.status(201).json({
+            message: 'Review added successfully!',
+            review,
+        });
+    } catch (error) {
+        console.error('Error adding review:', error);
+        return res.status(500).json({
+            message: 'An error occurred while adding the review.',
+            error: error.message,
+        });
+    }
+};
+
+// Get My Reviews
+const getMyReviews = async (req, res) => {
+    try {
+        const deliveryManId = req.user._id; // Assuming the deliveryManId comes from the auth middleware
+
+        // Fetch reviews for the delivery man
+        const reviews = await Review.find({ deliveryManId })
+            .populate('userId', 'name email profileImage') // Populate user details for better context
+            .sort({ reviewDate: -1 }); // Sort by reviewDate (latest first)
+
+        if (reviews.length === 0) {
+            return res.status(404).json({ message: 'No reviews found for this delivery man.' });
+        }
+
+        return res.status(200).json({
+            message: 'Reviews fetched successfully!',
+            reviews,
+        });
+    } catch (error) {
+        console.error('Error fetching reviews:', error);
+        return res.status(500).json({
+            message: 'An error occurred while fetching reviews.',
+            error: error.message,
+        });
+    }
+};
+
+const updateParcelStatus = async (req, res) => {
+    try {
+        const { id } = req.params; // Parcel ID from the URL
+        const { status } = req.body; // New status from the request body
+
+        // Validate input
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                message: 'Status is required.',
+            });
+        }
+
+        // Allowed status transitions
+        const allowedStatuses = ['Pending', 'On The Way', 'Delivered', 'Returned', 'Cancelled'];
+
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status. Allowed statuses are: ${allowedStatuses.join(', ')}`,
+            });
+        }
+
+        // Find the parcel by ID
+        const parcel = await Parcel.findById(id);
+
+        if (!parcel) {
+            return res.status(404).json({
+                success: false,
+                message: 'Parcel not found.',
+            });
+        }
+
+        // Ensure the current status and new status are valid transitions
+        const validTransitions = {
+            Pending: ['On The Way', 'Cancelled'],
+            'On The Way': ['Delivered', 'Returned'],
+            Delivered: [],
+            Cancelled: [],
+            Returned: [],
+        };
+
+        if (!validTransitions[parcel.status].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot transition from '${parcel.status}' to '${status}'.`,
+            });
+        }
+
+        // Update the status
+        parcel.status = status;
+
+        // Save the updated parcel
+        const updatedParcel = await parcel.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Parcel status updated successfully.',
+            data: updatedParcel,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating parcel status.',
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     createParcel,
     getAllParcels,
@@ -228,4 +522,10 @@ module.exports = {
     updateParcel,
     getMyParcels,
     cancelParcelBooking,
+    filterParcels,
+    assignDeliveryMan,
+    getParcelsForDeliveryMan,
+    addReview,
+    getMyReviews,
+    updateParcelStatus,
 };
