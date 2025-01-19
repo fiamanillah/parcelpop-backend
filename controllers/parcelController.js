@@ -481,10 +481,9 @@ const updateParcelStatus = async (req, res) => {
         // Ensure the current status and new status are valid transitions
         const validTransitions = {
             Pending: ['On The Way', 'Cancelled'],
-            'On The Way': ['Delivered', 'Returned'],
+            'On The Way': ['Delivered', 'Cancelled'],
             Delivered: [],
             Cancelled: [],
-            Returned: [],
         };
 
         if (!validTransitions[parcel.status].includes(status)) {
