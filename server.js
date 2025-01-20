@@ -63,7 +63,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
     });
 });
 
-// Test route
 app.get('/', (req, res) => {
     res.json({ message: 'API is working' });
 });
