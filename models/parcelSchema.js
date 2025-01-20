@@ -23,6 +23,12 @@ const parcelSchema = new mongoose.Schema(
             enum: ['Pending', 'On The Way', 'Delivered', 'Returned', 'Cancelled'],
             default: 'Pending',
         },
+        paymentStatus: {
+            type: String,
+            enum: ['Pending', 'Completed', 'Failed'],
+            default: 'Pending',
+        },
+        paymentIntentId: { type: String }, // Store Stripe paymentIntent ID
     },
     { timestamps: true }
 );

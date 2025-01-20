@@ -674,6 +674,38 @@ const getStatisticsData = async (req, res) => {
     }
 };
 
+// Update payment status after payment success
+const handlePaymentSuccess = async (req, res) => {
+    try {
+        const { parcelId } = req.params;
+        const { paymentIntentId } = req.body;
+
+        if (!parcelId || !paymentIntentId) {
+            return res.status(400).json({ error: 'Parcel ID and Payment Intent ID are required.' });
+        }
+
+        const updatedParcel = await Parcel.findByIdAndUpdate(
+            parcelId,
+            {
+                paymentStatus: 'Completed',
+                paymentIntentId,
+            },
+            { new: true }
+        );
+
+        if (!updatedParcel) {
+            return res.status(404).json({ error: 'Parcel not found.' });
+        }
+
+        res.status(200).json({
+            message: 'Payment status updated successfully.',
+            parcel: updatedParcel,
+        });
+    } catch (error) {
+        console.error('Error updating payment status:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+};
 module.exports = {
     createParcel,
     getAllParcels,
@@ -690,4 +722,5 @@ module.exports = {
     getAppStatistics,
     getTopDeliveryMen,
     getStatisticsData,
+    handlePaymentSuccess,
 };

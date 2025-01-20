@@ -16,6 +16,7 @@ const {
     getAppStatistics,
     getTopDeliveryMen,
     getStatisticsData,
+    handlePaymentSuccess,
 } = require('../controllers/parcelController'); // Adjust the path
 const authenticateJWT = require('../middleware/authMiddleware');
 
@@ -60,4 +61,7 @@ router.get('/stats', getAppStatistics);
 router.get('/topDeliveryMan', getTopDeliveryMen);
 
 router.get('/statisticsData', getStatisticsData);
+
+router.post('/payment-success/:parcelId', handlePaymentSuccess);
+
 module.exports = router;
