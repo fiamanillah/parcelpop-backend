@@ -13,6 +13,9 @@ const {
     addReview,
     getMyReviews,
     updateParcelStatus,
+    getAppStatistics,
+    getTopDeliveryMen,
+    getStatisticsData,
 } = require('../controllers/parcelController'); // Adjust the path
 const authenticateJWT = require('../middleware/authMiddleware');
 
@@ -51,4 +54,10 @@ router.get('/reviews/my-reviews', authenticateJWT, getMyReviews);
 
 router.patch('/:id/status', updateParcelStatus);
 
+// GET /api/stats
+router.get('/stats', getAppStatistics);
+
+router.get('/topDeliveryMan', getTopDeliveryMen);
+
+router.get('/statisticsData', getStatisticsData);
 module.exports = router;

@@ -514,6 +514,166 @@ const updateParcelStatus = async (req, res) => {
     }
 };
 
+// Controller to get statistics
+const getAppStatistics = async (req, res) => {
+    try {
+        // Get the total number of users
+        const totalUsers = await User.countDocuments();
+
+        // Get the total number of parcels booked
+        const totalParcelsBooked = await Parcel.countDocuments();
+
+        // Get the total number of parcels delivered
+        const totalParcelsDelivered = await Parcel.countDocuments({ status: 'Delivered' });
+
+        // Respond with the aggregated data
+        res.status(200).json({
+            totalUsers,
+            totalParcelsBooked,
+            totalParcelsDelivered,
+        });
+    } catch (error) {
+        console.error('Error fetching statistics:', error);
+        res.status(500).json({ error: 'Failed to fetch statistics.' });
+    }
+};
+
+const getTopDeliveryMen = async (req, res) => {
+    try {
+        // Aggregate the parcels data to get top delivery men based on delivered parcels and average rating
+        const topDeliveryMen = await Parcel.aggregate([
+            // Match parcels that are delivered
+            { $match: { status: 'Delivered' } },
+
+            // Group by deliveryManId to calculate the total parcels delivered
+            {
+                $group: {
+                    _id: '$deliveryManId', // Group by deliveryManId (the delivery man's user ID)
+                    totalParcelsDelivered: { $sum: 1 }, // Count total delivered parcels for this delivery man
+                },
+            },
+
+            // Join with the Review collection to calculate average rating for each delivery man
+            {
+                $lookup: {
+                    from: 'reviews', // Review collection name
+                    localField: '_id', // Field that links to the delivery man's userId in the Review collection
+                    foreignField: 'deliveryManId', // Reference to deliveryManId in the Review collection
+                    as: 'reviews', // Output the joined data as 'reviews'
+                },
+            },
+
+            // Add the average rating field
+            {
+                $addFields: {
+                    averageRating: {
+                        $avg: '$reviews.rating', // Calculate average rating from the reviews
+                    },
+                },
+            },
+
+            // Join with the User collection to get additional details about the delivery man
+            {
+                $lookup: {
+                    from: 'users', // User collection name
+                    localField: '_id', // Field that links to the delivery man's userId in the User collection
+                    foreignField: '_id', // Reference to _id in the User collection
+                    as: 'deliveryManDetails', // Output the joined data as 'deliveryManDetails'
+                },
+            },
+
+            // Unwind the 'deliveryManDetails' array (since $lookup produces an array even for one element)
+            { $unwind: '$deliveryManDetails' },
+
+            // Sort by total parcels delivered (descending) and then by average rating (descending)
+            {
+                $sort: {
+                    totalParcelsDelivered: -1,
+                    averageRating: -1,
+                },
+            },
+
+            // Limit the results to top 3 delivery men
+            { $limit: 3 },
+
+            // Project the desired fields (delivery man details and delivery info)
+            {
+                $project: {
+                    _id: 0, // Exclude the _id from the output
+                    deliveryManId: '$_id', // Include deliveryManId
+                    name: '$deliveryManDetails.name', // Name of the delivery man
+                    profileImage: '$deliveryManDetails.profileImage', // Profile image URL of the delivery man
+                    totalParcelsDelivered: 1,
+                    averageRating: 1,
+                },
+            },
+        ]);
+
+        // Send the top delivery men data as a response
+        res.status(200).json({ success: true, data: topDeliveryMen });
+    } catch (error) {
+        console.error('Error fetching top delivery men:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+
+// Get statistics data for charts
+const getStatisticsData = async (req, res) => {
+    try {
+        // Aggregate data for both bar chart and line chart
+        const bookingsData = await Parcel.aggregate([
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$bookingDate' } }, // Group by booking date
+                    bookedCount: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $or: [
+                                        { $eq: ['$status', 'Pending'] },
+                                        { $eq: ['$status', 'On The Way'] },
+                                    ],
+                                },
+                                1,
+                                0,
+                            ],
+                        },
+                    },
+                    deliveredCount: { $sum: { $cond: [{ $eq: ['$status', 'Delivered'] }, 1, 0] } },
+                    totalBookings: { $sum: 1 }, // Total bookings for the bar chart
+                },
+            },
+            { $sort: { _id: 1 } }, // Sort by booking date ascending
+        ]);
+
+        // Transform the data to fit chart requirements
+        const barChartData = bookingsData.map(item => ({
+            date: item._id,
+            totalBookings: item.totalBookings,
+        }));
+
+        const lineChartData = bookingsData.map(item => ({
+            date: item._id,
+            booked: item.bookedCount,
+            delivered: item.deliveredCount,
+        }));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                barChartData, // For bar chart: bookings by date
+                lineChartData, // For line chart: booked vs delivered parcels by date
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching statistics data:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch statistics data',
+        });
+    }
+};
+
 module.exports = {
     createParcel,
     getAllParcels,
@@ -527,4 +687,7 @@ module.exports = {
     addReview,
     getMyReviews,
     updateParcelStatus,
+    getAppStatistics,
+    getTopDeliveryMen,
+    getStatisticsData,
 };
