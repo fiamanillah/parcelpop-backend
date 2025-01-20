@@ -13,7 +13,6 @@ dotenv.config();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
